@@ -2,6 +2,7 @@
 
 # imports
 
+from os import stat
 from storage import load_tasks, save_tasks, generate_id
 from models.task import Task
 from dataclasses import asdict
@@ -16,20 +17,33 @@ def main():
     parser_add = subparsers.add_parser("add", help="Add a new task")
     parser_add.add_argument("desc", type=str, help="Task description")
 
+    # subparser delete
+    parser_delete = subparsers.add_parser("delete", help="Delete a task")
+    parser_delete.add_argument("task_id", type=str, help="ID of the task to be deleted")
+
+    # subparser update
+    parser_update = subparsers.add_parser("update", help="Update a task description")
+    parser_update.add_argument("task_id", type=str, help="ID of the task to be updated")
+    parser_update.add_argument(
+        "new_desc", type=str, help="New updated description of the task"
+    )
     # subparser list
     parser_list = subparsers.add_parser("list", help="List of all tasks")
-    parser_list.add_argument(
-        "-t", "-todo", action="store_true", help="List of all to-do tasks"
+    #status group 
+    status_group = parser_list.add_mutually_exclusive_group() 
+    status_group.add_argument(
+        "-t", "--todo", action="store_true", help="List of to-do tasks"
     )
-    parser_list.add_argument(
-        "-d", "-done", action="store_true", help="List of all done tasks"
+    status_group.add_argument(
+        "-d", "--done", action="store_true", help="List of done tasks"
     )
-    parser_list.add_argument(
-        "-inp",
-        "-in-progress",
+    status_group.add_argument(
+        "-i",
+        "--inprogress",
         action="store_true",
-        help="List of all in-progress tasks",
+        help="List of in-progress tasks",
     )
+    #verbose 
     parser_list.add_argument(
         "-v", "--verbose", action="store_true", help="Show full details"
     )
@@ -50,6 +64,7 @@ def main():
 
     tasks = load_tasks()
     task_id = None
+
     # output
     # add command
     if args.command == "add":
@@ -57,24 +72,58 @@ def main():
         task_id = generate_id(tasks)
         tasks[task_id] = asdict(task)
         save_tasks(tasks)
-        print(f"[ADD] Task added: {task_id}: {args.desc}")
+        print(f"[ADD] Task ID {task_id} added: {args.desc}")
+
+    # rmemove command
+    elif args.command == "delete":
+        task_id = args.task_id
+        if not task_id in tasks:
+            print(f"Task [{task_id}] not found.")
+        else:
+            print(f"[DELETE] Task ID {task_id} deleted: {tasks[task_id]['desc']}")
+            del tasks[task_id]
+            save_tasks(tasks)
 
     # list command
     elif args.command == "list":
         if not tasks:
             print("No tasks found.")
         else:
+            if args.todo:
+                filter_status = "todo"
+            elif args.done:
+                filter_status = "done"
+            elif args.inprogress:
+                filter_status = "in-progress"
+            else:
+                filter_status = None
+
             for task_id, data in tasks.items():
+                if filter_status and data["status"] != filter_status:
+                    continue
+                
                 desc = data["desc"]
                 status = data["status"]
                 if args.verbose:
                     created_at = data.get("created_at", "N/A")
                     updated_at = data.get("updated_at", "N/A")
-                    print(f"[{task_id:>2}]: {desc} - {status}") 
+                    print(f"[{task_id:>2}]: {desc} - {status}")
                     print(f"        Created: {created_at}")
                     print(f"        Updated: {updated_at}\n")
                 else:
                     print(f"[{task_id:>2}]: {desc} - {status}")
+    # update command (desc)
+
+    elif args.command == "update":
+        task_id = args.task_id
+        if not task_id in tasks:
+            print(f"Task [{task_id}] not found.")
+        else:
+            task = Task(**tasks[task_id])
+            task.update_desc(args.new_desc)
+            tasks[task_id] = asdict(task)
+            save_tasks(tasks)
+            print(f"[UPDATE] Task {task_id} updated to {args.new_desc}")
 
     # done command
     elif args.command == "done":

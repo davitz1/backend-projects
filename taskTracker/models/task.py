@@ -12,3 +12,7 @@ class Task:
     def update_status(self, new_status):
         self.status = new_status
         self.updated_at = datetime.now().isoformat()
+
+    def update_desc(self, new_desc):
+        self.desc = new_desc
+        self.updated_at = datetime.now().isoformat()
